@@ -14,17 +14,17 @@ function []=sb_load_initial_isce(data_inc)
 %               saving 
 %   09/2017 DB: make complet seperate isce version as to incorporate more changes.
 %   10/2017 DB: Adding baseline grid information 
-%   05/2019 DB: fix bug on inc computation for referencedate being first in date list
+%   05/2019 DB: fix bug on inc computation for masterdate being first in date list
 %   ======================================================================
 
 %NB IFGS assumed in ascending date order
 
 phname=['pscands.1.ph'];            % for each PS candidate, a float complex value for each ifg
 ijname=['pscands.1.ij'];            % ID# Azimuth# Range# 1 line per PS candidate
-bperpname=['bperp.1.in'];           % in meters 1 line per secondary image
-dayname=['day.1.in'];               % YYYYMMDD, 1 line per secondary image
+bperpname=['bperp.1.in'];           % in meters 1 line per slave image
+dayname=['day.1.in'];               % YYYYMMDD, 1 line per slave image
 ifgdayname=['ifgday.1.in'];         % YYYYMMDD YYYYMMDD, 1 line per ifg
-referencedayname=['reference_day.1.in'];  % YYYYMMDD
+masterdayname=['master_day.1.in'];  % YYYYMMDD
 llname=['pscands.1.ll'];            % 2 float values (lon and lat) per PS candidate
 daname=['pscands.1.da'];            % 1 float value per PS candidate
 hgtname=['pscands.1.hgt'];          % 1 float value per PS candidate
@@ -52,21 +52,21 @@ day_yyyymmdd=load(dayname);
 year=floor(day_yyyymmdd/10000);
 month=floor((day_yyyymmdd-year*10000)/100);
 monthday=day_yyyymmdd-year*10000-month*100;
-secondary_day=datenum(year,month,monthday);
-[secondary_day,day_ix]=sort(secondary_day);
+slave_day=datenum(year,month,monthday);
+[slave_day,day_ix]=sort(slave_day);
 day_yyyymmdd=day_yyyymmdd(day_ix);
 
 
-if ~exist(referencedayname,'file')
-    referencedayname= ['../',referencedayname];
+if ~exist(masterdayname,'file')
+    masterdayname= ['../',masterdayname];
 end
-reference_day_yyyymmdd=load(referencedayname);
-year=floor(reference_day_yyyymmdd/10000);
-month=floor((reference_day_yyyymmdd-year*10000)/100);
-monthday=reference_day_yyyymmdd-year*10000-month*100;
-reference_day=datenum(year,month,monthday);
-reference_ix=sum(reference_day>secondary_day)+1;
-day=[secondary_day(1:reference_ix-1);reference_day;secondary_day(reference_ix:end)]; % insert reference day 
+master_day_yyyymmdd=load(masterdayname);
+year=floor(master_day_yyyymmdd/10000);
+month=floor((master_day_yyyymmdd-year*10000)/100);
+monthday=master_day_yyyymmdd-year*10000-month*100;
+master_day=datenum(year,month,monthday);
+master_ix=sum(master_day>slave_day)+1;
+day=[slave_day(1:master_ix-1);master_day;slave_day(master_ix:end)]; % insert master day 
 n_image=size(day,1);
 
 if ~exist(ifgdayname,'file')
@@ -83,13 +83,13 @@ if sum(found_true~=1)>0
    error('one or more days in ifgday.1.in not in day.1.in')
 end
 
-%% bperp one value per secondary
+%% bperp one value per slave
 if ~exist(bperpname,'file')
     bperpname= ['../',bperpname];
 end
 bperp=load(bperpname); 
 bperp=bperp(day_ix);
-bperp=[bperp(1:reference_ix-1);0;bperp(reference_ix:end)]; % insert reference-reference bperp (zero)
+bperp=[bperp(1:master_ix-1);0;bperp(master_ix:end)]; % insert master-master bperp (zero)
 bperp=bperp(ifgday_ix(:,2))-bperp(ifgday_ix(:,1));
 
 %% heading 
@@ -188,7 +188,7 @@ ij(:,1)=1:n_ps;
 lonlat=lonlat(sort_ix,:);
 
 
-stamps_save(savename,ij,lonlat,xy,bperp,day,reference_day,reference_ix,ifgday,ifgday_ix,n_image,n_ifg,n_ps,sort_ix,ll0,reference_ix,day_ix);
+stamps_save(savename,ij,lonlat,xy,bperp,day,master_day,master_ix,ifgday,ifgday_ix,n_image,n_ifg,n_ps,sort_ix,ll0,master_ix,day_ix);
 phname=['ph',num2str(psver)];
 stamps_save(phname,ph);
 %save psver psver ph xy lonlat
@@ -293,7 +293,7 @@ end
 if length(bperpdir)>0
     bperp_mat=zeros(n_ps,n_image,'single');
     count=1;
-    for i=setdiff([1:n_image],reference_ix);
+    for i=setdiff([1:n_image],master_ix);
         bperp_fname=['..' filesep 'baselineGRID_' datestr(day(i),'yyyymmdd')];
         if updir==1
             bperp_fname=['..' filesep bperp_fname];
